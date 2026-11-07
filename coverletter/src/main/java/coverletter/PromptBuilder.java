@@ -68,7 +68,7 @@ public class PromptBuilder {
 	// 1차 응답 문자열 -> 역량 목록
 	public static List<String> parseStrengths(String llmOutput){
 		return llmOutput.lines()
-				.map(line -> line.strip().replaceFirst("^[-•*\\\\d.)]+\\\\s*", ""))
+				.map(line -> line.strip().replaceFirst("^[-•*\\d.)]+\\s*", ""))
 				.filter(line -> !line.isEmpty())
 				.limit(5)
 				.toList();
