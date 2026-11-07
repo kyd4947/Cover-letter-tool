@@ -13,7 +13,8 @@ public class Extractors {
 		
 		return switch(ext) {
 			case "docx" -> new DocxExtractor();
-			case "txt" -> new TextExtractor();
+			case "txt", "md" -> new TextExtractor();
+			case "pptx" -> new PptxExtractor();
 			default -> throw new Extractor.ExtractException("지원형식 아님 : ." + ext + "(확장 계획) : " + file, null);
 		};
 	}
