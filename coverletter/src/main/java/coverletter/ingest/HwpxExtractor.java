@@ -31,7 +31,9 @@ public class HwpxExtractor implements Extractor{
 			StringBuilder text = new StringBuilder();
 			for(ZipEntry section : sections) {
 				try(InputStream in = zip.getInputStream(section)){
-					Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+					DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+					factory.setNamespaceAware(true);				// 기본값 false라 생략하면 빈 목록
+					Document document = factory.newDocumentBuilder().parse(in);
 					
 					// 문단 - 네임스페이스 와일드카드
 					NodeList paragraphs = document.getElementsByTagNameNS("*", "p");

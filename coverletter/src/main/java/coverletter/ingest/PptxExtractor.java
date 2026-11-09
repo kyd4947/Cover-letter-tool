@@ -32,7 +32,9 @@ public class PptxExtractor implements Extractor{
 			for(ZipEntry slide : slides) {
 				text.append("---- 슬라이드 ").append(slideNumber(slide.getName())).append(" ---- \n");
 				try(InputStream in = zip.getInputStream(slide)){
-					Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+					DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+					factory.setNamespaceAware(true);				// 기본값 false라 생략하면 빈 목록
+					Document document = factory.newDocumentBuilder().parse(in);
 					
 					NodeList paragraphs = document.getElementsByTagNameNS("*", "p");			// 문단(a:p)
 					for(int i = 0; i < paragraphs.getLength(); i++) {

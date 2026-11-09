@@ -23,7 +23,10 @@ public class DocxExtractor implements Extractor {
 				throw new Extractor.ExtractException("docx 형식 아님 (word/document.xml 없음) : " + file, null);
 			}
 			try (InputStream in = zip.getInputStream(entry)){
-				Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(in);
+				DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+				factory.setNamespaceAware(true);				// 기본값 false라 생략하면 빈 목록
+				Document document = factory.newDocumentBuilder().parse(in);
+				
 				StringBuilder text = new StringBuilder();
 				
 				NodeList paragraphs = document.getElementsByTagNameNS("*", "p");		// 모든 문단
