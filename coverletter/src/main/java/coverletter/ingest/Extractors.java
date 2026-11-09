@@ -15,6 +15,7 @@ public class Extractors {
 			case "docx" -> new DocxExtractor();
 			case "txt", "md" -> new TextExtractor();
 			case "pptx" -> new PptxExtractor();
+			case "hwpx" -> new HwpxExtractor();
 			default -> throw new Extractor.ExtractException("지원형식 아님 : ." + ext + "(확장 계획) : " + file, null);
 		};
 	}
