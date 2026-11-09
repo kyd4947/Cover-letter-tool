@@ -58,15 +58,19 @@ public class Ingestor {
 					System.out.println();
 					System.out.println("### " + file.getFileName() + " 요약 카드 ###");
 					System.out.println(one);
-					System.out.print("\n profile.md에 반영할까요? (y/n) : ");
-					if (!isYes(input.nextLine())) {
-						System.out.println("[유지하다] 반영하지 않음 - 다음 파일로");
-						continue;
-					}
-					// 2) 승인 -> 중복 검사 후 반영
+					// 제목을 승인 전에 뽑아 근사 중복 의심 표시 -> 사람이 제목 보고 판단
 					String title = cutTitle(one, file);
+					String similar = similarTitle(title);
+					if(similar != null) {
+						System.out.println("[중복 의심] '" + title + "' 는 기존 '" + similar + "' 와 제목이 유사 - 중복 아니면 y, 같은 항목이면 n");
+					}
 					if(profileHas(title)) {
 						System.out.println("[스킵] '" + title + "' 섹션이 profile.md에 이미 있음");
+						continue;
+					}
+					System.out.print("\n profile.md에 반영할까요? (y/n) : ");
+					if (!isYes(input.nextLine())) {
+						System.out.println("[유지] 반영하지 않음 - 다음 파일로");
 						continue;
 					}
 					appendSection(title, one);
@@ -111,6 +115,50 @@ public class Ingestor {
 		String name = file.getFileName().toString();
 		int dot = name.lastIndexOf('.');
 		return dot < 0 ? name : name.substring(0, dot);
+	}
+	
+	// 근사 중복 의심 표시
+	private String similarTitle(String title) throws IOException{
+		if(!Files.exists(PROFILE)) {
+			return null;
+		}
+		String key = normalize(title);
+		if(key.isEmpty()) {
+			return null;
+		}
+		for(String line : Files.readAllLines(PROFILE)) {
+			if(line.startsWith(key)) {
+				String existing = line.substring(3).strip();
+				if(existing.equals(title.strip())) {
+					continue;				// 완전 일치는 이 곳이 아닌 profileHas 관문
+				}
+				String other = normalize(existing);
+				int shorter = Math.min(key.length(), other.length());
+				if(shorter > 0 && commonPieces(key,other) >= shorter * 0.6) {
+					return existing;
+				}
+			}
+		}
+		return null;
+	}
+	
+	// 제목 정규화 : 공백, 기호 제거 + 영문 소문자
+	private static String normalize(String title) {
+		return title.replaceAll("[^0-9가-힣a-zA-Z]", "").toLowerCase();
+	}
+	
+	// 두 문자열에 겹치는 가장 긴 연속 조각의 길이(제목은 20자 수준)
+	private static int commonPieces(String a, String b) {
+		int best = 0;
+		for(int start = 0; start < a.length(); start++) {
+			for(int end = start + 1; end <= a.length(); end++) {
+				String piece = a.substring(start, end);
+				if(b.contains(piece) && piece.length() > best) {
+					best = piece.length();
+				}
+			}
+		}
+		return best;
 	}
 	
 	// profile.md를 줄 단위로 훑으면 "## 제목" 섹션 중복 확인 (gitignore 대상, 파일 유무 무관)
