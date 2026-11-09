@@ -127,7 +127,7 @@ public class Ingestor {
 			return null;
 		}
 		for(String line : Files.readAllLines(PROFILE)) {
-			if(line.startsWith(key)) {
+			if(line.startsWith("## ")) {
 				String existing = line.substring(3).strip();
 				if(existing.equals(title.strip())) {
 					continue;				// 완전 일치는 이 곳이 아닌 profileHas 관문
