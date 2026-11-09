@@ -18,4 +18,14 @@ public class Extractors {
 			default -> throw new Extractor.ExtractException("지원형식 아님 : ." + ext + "(확장 계획) : " + file, null);
 		};
 	}
+	
+	// 폴더 배치용 - 이 파일이 적재 대상 확장자인지 확인
+	public static boolean supported(Path file) {
+		try {
+			of(file);
+			return true;
+		}catch(Extractor.ExtractException e) {
+			return false;
+		}
+	}
 }
