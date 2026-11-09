@@ -7,6 +7,7 @@ import java.util.List;
 
 import coverletter.config.AppConfig;
 import coverletter.ingest.Extractors;
+import coverletter.ingest.Ingestor;
 import coverletter.llm.GeminiClient;
 
 // 적재 CLI - 실행 인수 : 원본 파일 경로 여러 개
@@ -49,6 +50,8 @@ public class IngestMain {
 				System.err.println("적재할 파일이 없습니다.");
 				return;
 			}
+			new Ingestor().ingest(config, files);
+			System.out.println("Ingest 완료");
 		} catch(GeminiClient.GeminiException e) {
 			System.err.println("[호출 실패] " + e.getMessage());
 		} catch(IllegalStateException e) {
