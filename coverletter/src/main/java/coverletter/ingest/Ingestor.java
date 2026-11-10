@@ -33,11 +33,21 @@ public class Ingestor {
 			결과: (자료에 실제 근거가 있는 것만)
 			""";
 	
+	// 이미지 pdf 전사용 - 원문만, 요약 금지 (카드 관문이 요약 역할을 이미 갖고 있음)
+	private static final String OCR_SYSTEM = """
+			너는 pdf 원문 전사기다. 이미지 문서든 텍스트 문서든 문서 안의 모든 글자를
+			문서 순서대로 평문으로 출력한다. 요약·해설·추가 문장 없이 원문 그대로만.
+			""";
+	
 	public void ingest(AppConfig config, List<Path> files) throws IOException{
 		Scanner input = new Scanner(System.in);
 		for(Path file : files) {
 			try {
 				String text = Extractors.of(file).extract(file);
+				if (text.isBlank() && isPdf(file)) {
+					System.out.println("pdf 텍스트 없음 - 이미지 pdf 추정 : Gemini vision 폴백 ...");
+					text = pdfTextByVision(config, file);
+				}
 				if (text.isBlank()) {
 					System.out.println("[스킵] " + file.getFileName() + " - 추출한 텍스트가 비어 있음");
 					continue;
@@ -173,6 +183,21 @@ public class Ingestor {
 			}
 		}
 		return false;
+	}
+	
+	// vision 폴백 대상 확장자 (현재 pdf만)
+	private static boolean isPdf(Path file) {
+		return file.getFileName().toString().toLowerCase().endsWith(".pdf");
+	}
+	
+	// pdf 원문을 통째로 inline_data에 실어 Gemini가 전사 (18MB 직전 풀 실패 → fail-closed)
+	private String pdfTextByVision(AppConfig config, Path file) throws IOException {
+		byte[] media = Files.readAllBytes(file);
+		if (media.length > 18 * 1024 * 1024) {
+			System.out.println("[스킵] " + file.getFileName() + " - pdf 용량 초과 (폴백 미사용)");
+			return "";
+		}
+		return gemini.generate(config, new Prompt(OCR_SYSTEM, "아래 pdf 원문을 전사한다."), media, "application/pdf");
 	}
 	
 	// profile.md 맨 뒤에 "\n\n## 제목 \n\n (카드 본문)" 추가 - 제목 줄은 제거

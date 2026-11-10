@@ -5,6 +5,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.function.Consumer;
 
 import com.google.gson.Gson;
@@ -49,10 +50,14 @@ public class GeminiClient {
 			.build();
 	
 	public String generate(AppConfig config, Prompt p) {
+		return generate(config, p, null, null);
+	}
+	
+	public String generate(AppConfig config, Prompt p, byte[] media, String mimeType) {
 		GeminiException last = null;
 		for (String model : config.models()) {
 			try {
-				return generateOnModel(model, config, p);
+				return generateOnModel(model, config, p, media, mimeType);
 			} catch (GeminiException e) {
 				if(e.statusCode == 429 || e.statusCode == 404) {
 					last = e;
@@ -66,14 +71,29 @@ public class GeminiClient {
 		throw last != null ? last : new GeminiException(0, "시도 가능한 모델이 없습니다");
 	}
 	
-	private String generateOnModel(String model, AppConfig config, Prompt p) {
+	private String generateOnModel(String model, AppConfig config, Prompt p, byte[] media, String mimeType) {
 		JsonObject body = new JsonObject();
 		if(p.systemText() != null && !p.systemText().isBlank()) {
 			body.add("system_instruction", textPart(p.systemText()));
 		}
 		JsonArray contents = new JsonArray();
-		contents.add(textPart(p.userText()));
+		JsonObject content = new JsonObject();
+		JsonArray parts = new JsonArray();
+		if (media != null) {						// 미디어 파트 - 원본 바이트 base64
+			JsonObject inline = new JsonObject();
+			JsonObject data = new JsonObject();
+			data.addProperty("mime_type", mimeType);
+			data.addProperty("data", Base64.getEncoder().encodeToString(media));
+			inline.add("inline_data", data);
+			parts.add(inline);
+		}
+		JsonObject userPart = new JsonObject();
+		userPart.addProperty("text", p.userText());
+		parts.add(userPart);
+		content.add("parts", parts);
+		contents.add(content);
 		body.add("contents", contents);
+
 		JsonObject gen = new JsonObject();
 		gen.addProperty("temperature", config.temperature());
 		gen.addProperty("maxOutputTokens", config.maxOutputTokens());
