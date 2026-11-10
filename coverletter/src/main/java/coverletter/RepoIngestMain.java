@@ -21,6 +21,9 @@ import java.util.zip.ZipInputStream;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import coverletter.config.AppConfig;
+import coverletter.ingest.Ingestor;
+
 // 레포 적재 1 단계 - 레포 URL -> zip 다운 -> cache / 풀기 -> 텍스트 선별 통계
 // LLM 미사용 - 요약 카드 / 승인 반영은 2 단계 곡에서 연결
 public class RepoIngestMain {
@@ -43,6 +46,20 @@ public class RepoIngestMain {
 	private static final List<String> SKIP_DIRS = List.of(
 			".git", ".github", "node_modules", "build", "bin", ".gradle",
 			"dist", "__pycache__", "venv", ".idea");
+	
+	// 레포 스냅샷 전용 - 코드·문서의 실제 흔적만 근거로
+		private static final String REPO_SYSTEM = """
+				너는 GitHub 레포 스냅샷 분석기다. README·소스·노트북에서 자기소개서 재료로 쓸 사실만 정리한다.
+				코드에 실제 흔적이 없는 것을 만들어내지 않는다. 근거 없는 칭찬 표현 금지.
+				목적은 README·문서·주석에서, 과제와 결과는 코드에 실제 남은 흔적에서 찾는다.
+				프로젝트가 여럿 보이면 각각 카드를 출력하고 카드 사이는 구분줄 === 로 나눈다.
+				출력은 아래 양식만, 각 항목은 한 줄:
+				제목: (프로젝트명, 20자 이내)
+				목적: (만들거나 한 이유)
+				기술: (실제 사용한 것)
+				과제: (직면한 문제 - 자료에 실제 흔적이 있는 것)
+				결과: (자료에 실제 근거가 있는 것만)
+				""";
 	
 	public static void main(String[] args) {
 		if(args.length < 1) {
@@ -72,22 +89,30 @@ public class RepoIngestMain {
 		Path dir = CACHE.resolve(owner + "-" + repo);
 		if(Files.exists(dir)) {
 			System.out.println("cache/ 스냅샷 이미 존재 - 재사용 (새로 받으려면 cache 폴더 삭제 후 재Run)");
-			finish(dir);
-			return;
-		}
-		
-		// codeload 직결 - api.github.com rate (비로그인 60/h)를 소모하지 않음
-		URI zipUri = URI.create("https://codeload.github.com/" + owner + "/" + repo + "/zip/refs/heads/" + target);
-		HttpResponse<InputStream> res = HTTP.send(HttpRequest.newBuilder().uri(zipUri).header("User-Agent", "coverletter-tool")
-				.timeout(Duration.ofSeconds(120)).GET().build(), HttpResponse.BodyHandlers.ofInputStream());
-		if(res.statusCode() != 200) {
-			throw new IOException("스냅샷 다운로드 실패 : HTTP " + res.statusCode() + " - URL, 브랜치, 공개 여부 확인");
-		}
-		System.out.println("zip 내려 받는 중 ....");
-		try (InputStream in = res.body()){
-			unzip(in, dir);
+		} else {
+			// codeload 직결 - api.github.com rate (비로그인 60/h)를 소모하지 않음
+			URI zipUri = URI.create("https://codeload.github.com/" + owner + "/" + repo + "/zip/refs/heads/" + target);
+			HttpResponse<InputStream> res = HTTP.send(HttpRequest.newBuilder().uri(zipUri).header("User-Agent", "coverletter-tool")
+					.timeout(Duration.ofSeconds(120)).GET().build(), HttpResponse.BodyHandlers.ofInputStream());
+			if(res.statusCode() != 200) {
+				throw new IOException("스냅샷 다운로드 실패 : HTTP " + res.statusCode() + " - URL, 브랜치, 공개 여부 확인");
+			}
+			System.out.println("zip 내려 받는 중 ....");
+			try (InputStream in = res.body()){
+				unzip(in, dir);
+			}
 		}
 		finish(dir);
+		
+		// 2 단계 - 선별 문서를 LLM 요약 카드로 (Ingestor 공유 승인 관문)
+		String doc = assembleDoc(dir);
+		if(doc.isBlank()) {
+			System.out.println("[스킵] " + repo + " - 텍스트 재료 없음");
+			return;
+		}
+		AppConfig config = AppConfig.load();
+		System.out.println("키 로딩 OK - 모델 : " + config.models().get(0));
+		new Ingestor().ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc);
 	}
 	
 	// 기본 브랜치 조회 - GitHub API를 딱 1회 (비로그인 rate 60/h, 무해)
@@ -151,6 +176,28 @@ public class RepoIngestMain {
 				}
 			}
 		}
+	}
+	
+	// 선별 파일 경로순 정렬 -> "===== 경로 =====" 헤더 + 내용 연결 (4MB 조립 한도)
+	private static String assembleDoc(Path dir) throws IOException{
+		List<Path> files = new ArrayList<>();
+		for(Path file : Files.walk(dir).toList()) {
+			if(Files.isRegularFile(file) && !isSkipped(file) && TEXT_EXTS.contains(extOf(file))
+					&& Files.size(file) <= MAX_FILE_BYTES) {
+				files.add(file);
+			}
+		}
+		files.sort(Path::compareTo);
+		StringBuilder doc = new StringBuilder();
+		for(Path file : files) {
+			String content = Files.readString(file);
+			if(doc.length() + content.length() > 4L * 1024 * 1024) {
+				doc.append("\n\n[참고] 문서 조립 한도 도달 - 나머지 파일 생략\n");
+				break;
+			}
+			doc.append("\n\n===== ").append(dir.relativize(file)).append(" =====\n").append(content);
+		}
+		return doc.toString().strip();
 	}
 	
 	// 선별 통계 스탬프 - 파일 수, 총량, 확장자 분포 상위

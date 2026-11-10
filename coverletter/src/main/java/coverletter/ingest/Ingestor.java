@@ -53,39 +53,12 @@ public class Ingestor {
 					continue;
 				}
 				
-				// 1) 요약 카드
-				System.out.println("적재 중 : " + file.getFileName() + "...");			// 침묵 구간 진행줄
-				String user = "자료 원문:\n" + text.strip();
-				String card = gemini.generate(config, new Prompt(CARD_SYSTEM, user)).strip();
-
-				// 2) 다중 카드 분할 -> 카드별 승인
-				List<String> cards = splitCards(card);
-				if(cards.isEmpty()) {
-					System.out.println("[스킵] " + file.getFileName() + " - 카드 재료 없음");
-					continue;
-				}
-				for (String one : cards) {
-					System.out.println();
-					System.out.println("### " + file.getFileName() + " 요약 카드 ###");
-					System.out.println(one);
-					// 제목을 승인 전에 뽑아 근사 중복 의심 표시 -> 사람이 제목 보고 판단
-					String title = cutTitle(one, file);
-					String similar = similarTitle(title);
-					if(similar != null) {
-						System.out.println("[중복 의심] '" + title + "' 는 기존 '" + similar + "' 와 제목이 유사 - 중복 아니면 y, 같은 항목이면 n");
-					}
-					if(profileHas(title)) {
-						System.out.println("[스킵] '" + title + "' 섹션이 profile.md에 이미 있음");
-						continue;
-					}
-					System.out.print("\n profile.md에 반영할까요? (y/n) : ");
-					if (!isYes(input.nextLine())) {
-						System.out.println("[유지] 반영하지 않음 - 다음 파일로");
-						continue;
-					}
-					appendSection(title, one);
-					System.out.println("반영 완료 - profile.md에 '" + title + "' 섹션 추가");
-				}
+				// 카드 생성 + 승인 - 파일, 레포, 직접 텍스트 공유 관문
+				String fileName = file.getFileName().toString();
+				int dot = fileName.lastIndexOf('.');
+				String fallback = dot > 0 ? fileName.substring(0, dot) : fileName;
+				runCards(config, fileName, fallback, text, input);
+				
 			} catch (Extractor.ExtractException e) {
 				System.out.println("[스킵] " + file.getFileName() + " - " + e.getMessage());
 			}
@@ -115,16 +88,14 @@ public class Ingestor {
 		return typed != null && typed.strip().equalsIgnoreCase("y");
 	}
 	
-	// 카드의 "제목:...." 줄에서 제목을 뽑음. 없으면 파일명 (확장자 제거)
-	private static String cutTitle(String card, Path file) {
+	// 카드의 "제목:...." 줄에서 제목을 뽑음. 없으면 fallback (확장자 제거한 파일명 / 레포명)
+	private static String cutTitle(String card, String fallback) {
 		for(String line : card.lines().toList()) {
 			if(line.strip().startsWith("제목:")) {
 				return line.strip().substring("제목:".length()).strip();
 			}
 		}
-		String name = file.getFileName().toString();
-		int dot = name.lastIndexOf('.');
-		return dot < 0 ? name : name.substring(0, dot);
+		return fallback;
 	}
 	
 	// 근사 중복 의심 표시
@@ -210,5 +181,49 @@ public class Ingestor {
 			}
 		}
 		Files.writeString(PROFILE, section.toString(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+	}
+	
+	// 카드 생성 -> 다중 분할 -> 카드별 승인 (파일·레포·직접 텍스트 공유 관문)
+	void runCards(AppConfig config, String display, String fallback, String text, Scanner input) throws IOException {
+		System.out.println("적재 중 : " + display + "...");
+		String user = "자료 원문:\n" + text.strip();
+		String card = gemini.generate(config, new Prompt(CARD_SYSTEM, user)).strip();
+
+		List<String> cards = splitCards(card);
+		if(cards.isEmpty()) {
+			System.out.println("[스킵] " + display + " - 카드 재료 없음");
+			return;
+		}
+		for (String one : cards) {
+			System.out.println();
+			System.out.println("### " + display + " 요약 카드 ###");
+			System.out.println(one);
+			// 제목을 승인 전에 뽑아 근사 중복 의심 표시 -> 사람이 제목 보고 판단
+			String title = cutTitle(one, fallback);
+			String similar = similarTitle(title);
+			if(similar != null) {
+				System.out.println("[중복 의심] '" + title + "' 는 기존 '" + similar + "' 와 제목이 유사 - 중복 아니면 y, 같은 항목이면 n");
+			}
+			if(profileHas(title)) {
+				System.out.println("[스킵] '" + title + "' 섹션이 profile.md에 이미 있음");
+				continue;
+			}
+			System.out.print("\n profile.md에 반영할까요? (y/n) : ");
+			if (!isYes(input.nextLine())) {
+				System.out.println("[유지] 반영하지 않음 - 다음 파일로");
+				continue;
+			}
+			appendSection(title, one);
+			System.out.println("반영 완료 - profile.md에 '" + title + "' 섹션 추가");
+		}
+	}
+
+	// 외부 조립 텍스트를 카드 관문으로 - 레포 적재 2단계 입구
+	public void ingestText(AppConfig config, String display, String fallback, String text) throws IOException {
+		if(text == null || text.isBlank()) {
+			System.out.println("[스킵] " + display + " - 조립한 텍스트가 비어 있음");
+			return;
+		}
+		runCards(config, display, fallback, text, new Scanner(System.in));
 	}
 }
