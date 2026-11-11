@@ -67,9 +67,24 @@ public class Main {
 			}
 			System.out.println("요구역량 " + strengths.size() + "개 -> " + strengths);
 			
-			// 5) LLM 2차 - 항목별 초안 (순차 5호출)
+			// 5) LLM 양식 감지 - 항목 + 글자 수 유추, 실패 시 기본 양식 (fail - closed)
+			List<Section> form;
+			try {
+				form = PromptBuilder.parseForm(gemini.generate(config, builder.buildFormPrompt(posting)));
+			} catch (GeminiClient.GeminiException e) {
+				System.out.println("양식 감지 호출 실패 - 기본 양식 사용 (" + e.getMessage() + ")");
+				form = List.of();
+			}
+			if (form.isEmpty()) {
+				System.out.println("양식 감지 실패 - 기본 양식 사용 (성장 과정 / 지원 동기 / 성격 장단점 / 입사 후 포부)");
+				form = DEFAULT_FORM;
+			} else {
+				System.out.println("양식 감지 OK - " + form.size() + "항목 -> " + form);
+			}
+			
+			// 6) LLM 2차 - 항목별 초안 (순차 5호출)
 			List<SectionDraft> drafts = new ArrayList<>();
-			for(Section section : DEFAULT_FORM) {
+			for(Section section : form) {
 				System.out.println("생성 중 : " + section.title() + " ...");
 				String text = gemini.generate(config, builder.buildSectionPrompt(posting, profile, strengths, section, null));
 				int count = (int) text.strip().codePoints().count();
@@ -77,7 +92,7 @@ public class Main {
 				drafts.add(new SectionDraft(section, text.strip(), count));
 			}
 			
-			// 6) 저장
+			// 7) 저장
 			Path saved = new OutputSaver().save(new CompanyInfo(company, LocalDate.now()), drafts);
 			System.out.println("저장 성공 : " + saved.toAbsolutePath());
 		} catch (GeminiClient.GeminiException e) {

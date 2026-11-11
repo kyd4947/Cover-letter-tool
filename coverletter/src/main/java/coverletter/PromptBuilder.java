@@ -1,6 +1,7 @@
 package coverletter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import coverletter.profile.ProfileStore;
@@ -63,6 +64,42 @@ public class PromptBuilder {
 		}
 		
 		return new Prompt(system, user.toString());
+	}
+	
+	// 양식 감지 - 공고에서 자조서 항목 + 글자 수 유추. 실패 시 호출 측이 기본 양식 사용 (fail-closed)
+	public Prompt buildFormPrompt(Posting posting) {
+		String system = """
+				너는 한국 채용 자기소개서 양식 분석기다. 공고 본문에서 자기소개서 작성 항목과 글자수 제한을 유추한다.
+				글자수가 공고에 명시가 없으면 유형별 통상치를 쓴다 (성장과정·지원동기 500자, 입사 후 포부 400자 등).
+				항목은 2~5개. 출력은 아래 형식만, 항목당 한 줄:
+				항목: (항목명) / 글자수: (제한)
+				""";
+		String user = "채용공고 원문:\n" + posting.sourceText();
+		return new Prompt(system, user);
+	}
+	
+	// 감지 응답 파싱 - "항목: x / 글자수 : n" 줄만 수용. 이상하면 빈 목록 (기본 양식 폴백 트리거)
+	public static List<Section> parseForm(String llmOutput) {
+		List<Section> form = new ArrayList<>();
+		for(String line : llmOutput.lines().toList()) {
+			String s = line.strip();
+			if(!s.startsWith("항목:")) {
+				continue;
+			}
+			int at = s.indexOf("글자 수:");
+			String title = at > 3 ? s.substring("항목:".length(), at).replace("/", "").strip() : "";
+			String num = at >= 0 ? s.substring(at + "글자 수:".length()).replaceAll("[^0-9]", "") : "";
+			if(!title.isEmpty() && !num.isEmpty()) {
+				int limit = Integer.parseInt(num);
+				if(limit >= 200 && limit <= 2000) {			// 환각 필터 - 상식 범위 밖 글자수 폐기
+					form.add(new Section(title, limit));
+				}
+			}
+			if(form.size() >= 5) {
+				break;
+			}
+		}
+		return form;
 	}
 	
 	// 1차 응답 문자열 -> 역량 목록
