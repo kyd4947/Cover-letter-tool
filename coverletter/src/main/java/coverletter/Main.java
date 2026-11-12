@@ -88,7 +88,25 @@ public class Main {
 				System.out.println("생성 중 : " + section.title() + " ...");
 				String text = gemini.generate(config, builder.buildSectionPrompt(posting, profile, strengths, section, null));
 				int count = (int) text.strip().codePoints().count();
-				System.out.println("      완료 - " + count + "자 (제한 " + section.charLimit() + "자)");
+				
+				// 글자 수 clamp - 초과 시 압축 재호출 1회
+				if(count > section.charLimit()) {
+					System.out.println("           " + count + "자 초과 - 압축 재호출 ...");
+					String trimmed = gemini.generate(config, builder.buildTrimPrompt(section, text.strip())).strip();
+					int trimmedCount = (int) trimmed.codePoints().count();
+					if(trimmedCount <= section.charLimit()) {
+						text = trimmed;
+						count = trimmedCount;
+						System.out.println("              압축 성공 - " + count + "자");
+					} else if (trimmedCount < count) {
+						text = trimmed;
+						count = trimmedCount;
+						System.out.println("          [경고] 재호출 후에도 " + count + "자 초과 - 더 가까운 것 채택");
+					} else {
+						System.out.println("          [경고] 재호출 무효 - 원본 " + count + "자 유지");
+					}
+				}
+				System.out.println("       완료 - " + count + "자 (제한 " + section.charLimit() + "자)");
 				drafts.add(new SectionDraft(section, text.strip(), count));
 			}
 			

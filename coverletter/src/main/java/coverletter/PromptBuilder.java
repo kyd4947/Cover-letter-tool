@@ -102,6 +102,19 @@ public class PromptBuilder {
 		return form;
 	}
 	
+	// 글자 수 clamp - 초과 초안 압축 재호출
+	// 압축만이 목적이라 공고, 역량, 경력 재주입 없음
+	public Prompt buildTrimPrompt(Section section, String overDraft) {
+		String system = """
+				너는 한국 채용 자기소개서 압축 편집기다. 제공된 이전 초안만 다듬어 글자수 위반을 해소한다.
+				이전 초안의 사실과 문단 구조는 최대한 유지하되 중복 표현·군더더기를 제거해 압축한다.
+				새 사실을 추가하지 않는다. 문체는 존댓말 정중형.
+				출력은 본문 텍스트만. 공백 포함 글자수를 제한 이하로 맞추는 것이 최우선 목표다.
+				""";
+		String user = "[제한] 공백 포함 " + section.charLimit() + "자 이하 (이전 초안은 초과 - 반드시 줄일 것)" + "\n\n[이전 초안]\n" + overDraft;
+		return new Prompt(system, user);
+	}
+	
 	// 1차 응답 문자열 -> 역량 목록
 	public static List<String> parseStrengths(String llmOutput){
 		return llmOutput.lines()
