@@ -16,9 +16,17 @@ import coverletter.llm.GeminiClient;
 public class Ingestor {
 
 	// 반영 대상
-	private static final Path PROFILE = Path.of("profile.md");
+	private final Path profilePath;
 	
 	private final GeminiClient gemini = new GeminiClient();
+	
+	public Ingestor() {
+		this(Path.of("profile.md"));
+	}
+	
+	public Ingestor(Path profilePath) {
+		this.profilePath = profilePath;
+	}
 	
 	// 요약 카드 양식 - "제목...." 하나는 반영 시 섹션 제목으로 씀
 	private static final String CARD_SYSTEM = """
@@ -100,14 +108,14 @@ public class Ingestor {
 	
 	// 근사 중복 의심 표시
 	private String similarTitle(String title) throws IOException{
-		if(!Files.exists(PROFILE)) {
+		if(!Files.exists(profilePath)) {
 			return null;
 		}
 		String key = normalize(title);
 		if(key.isEmpty()) {
 			return null;
 		}
-		for(String line : Files.readAllLines(PROFILE)) {
+		for(String line : Files.readAllLines(profilePath)) {
 			if(line.startsWith("## ")) {
 				String existing = line.substring(3).strip();
 				if(existing.equals(title.strip())) {
@@ -144,11 +152,11 @@ public class Ingestor {
 	
 	// profile.md를 줄 단위로 훑으면 "## 제목" 섹션 중복 확인 (gitignore 대상, 파일 유무 무관)
 	private boolean profileHas(String title) throws IOException{
-		if(!Files.exists(PROFILE)) {
+		if(!Files.exists(profilePath)) {
 			return false;
 		}
 		String heading = "## " + title.strip();
-		for(String line : Files.readAllLines(PROFILE)) {
+		for(String line : Files.readAllLines(profilePath)) {
 			if(line.strip().equals(heading)) {
 				return true;
 			}
@@ -180,7 +188,7 @@ public class Ingestor {
 				section.append(line).append('\n');
 			}
 		}
-		Files.writeString(PROFILE, section.toString(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+		Files.writeString(profilePath, section.toString(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
 	}
 	
 	// 카드 생성 -> 다중 분할 -> 카드별 승인 (파일·레포·직접 텍스트 공유 관문)

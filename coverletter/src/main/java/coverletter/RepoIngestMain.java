@@ -112,7 +112,7 @@ public class RepoIngestMain {
 		}
 		AppConfig config = AppConfig.load();
 		System.out.println("키 로딩 OK - 모델 : " + config.models().get(0));
-		new Ingestor().ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc);
+		new Ingestor(config.profilePath()).ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc);
 	}
 	
 	// 기본 브랜치 조회 - GitHub API를 딱 1회 (비로그인 rate 60/h, 무해)

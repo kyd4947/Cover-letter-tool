@@ -52,7 +52,7 @@ public class Main {
 			}
 			
 			// 3) 내 경력 자료
-			ProfileStore.Profile profile = new ProfileStore().load(Path.of("profile.md"));
+			ProfileStore.Profile profile = new ProfileStore().load(config.profilePath());
 			System.out.println("profile 로딩 OK - 프로젝트 " + profile.projects().size() + "개");
 			
 			PromptBuilder builder = new PromptBuilder();
@@ -111,7 +111,7 @@ public class Main {
 			}
 			
 			// 7) 저장
-			Path saved = new OutputSaver().save(new CompanyInfo(company, LocalDate.now()), drafts);
+			Path saved = new OutputSaver(config.outputDir()).save(new CompanyInfo(company, LocalDate.now()), drafts);
 			System.out.println("저장 성공 : " + saved.toAbsolutePath());
 		} catch (GeminiClient.GeminiException e) {
 			System.err.println("[호출 실패] " + e.getMessage());

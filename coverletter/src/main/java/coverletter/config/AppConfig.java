@@ -11,7 +11,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 /** 설정 로딩 - 키 우선순위 : ① 환경변수 GEMINI_API_KEY -> ② config.json "geminiApiKey" */
-public record AppConfig(String geminiApiKey, List<String> models, double temperature, int maxOutputTokens) {
+public record AppConfig(String geminiApiKey, List<String> models, double temperature, int maxOutputTokens, Path profilePath, Path outputDir) {
 
 	// 기본 모델을 내보내는 메서드
 	public String model() {
@@ -33,7 +33,9 @@ public record AppConfig(String geminiApiKey, List<String> models, double tempera
 				key,
 				jsonModels(json),
 				num(json, "temperature", 0.7),
-				(int) num(json, "maxOutputTokens", 4096));
+				(int) num(json, "maxOutputTokens", 4096),
+				Path.of(str(json, "profilePath") != null ? str(json, "profilePath") : "profile.md"),
+				Path.of(str(json, "outputDir") != null ? str(json, "outputDir") : "output"));
 	}
 	
 	// "models" : [...] 우선 -> 없으면 "model" : "..." -> 없으면 기본 3후보

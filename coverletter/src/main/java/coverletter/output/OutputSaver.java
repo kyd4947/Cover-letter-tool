@@ -13,16 +13,26 @@ public class OutputSaver {
 	// 항목 1개의 완성본 - 실제 글자수는 LLM 계산을 믿지 않고 codePoints 실측 값을 넣음
 	public record SectionDraft(Section section, String text, int charCount) {}
 	
-	private static final Path OUTPUT_DIR = Path.of("output");  // config.outputDir 사용
+	private final Path outputDir;
+	
+	// 기본값 유지 생성자 - 기존 호출측 무손상
+	public OutputSaver() {
+		this(Path.of("output"));
+	}
+	
+	// config.outputDir 주입 생성자
+	public OutputSaver(Path outputDir) {
+		this.outputDir = outputDir;
+	}
 	
 	public Path save(CompanyInfo company, List<SectionDraft> drafts) throws IOException {
-		Files.createDirectories(OUTPUT_DIR);
+		Files.createDirectories(outputDir);
 		
 		String stem = sanitize(company.companyName().strip()) + "_" + company.appliedDate();
-		Path target = OUTPUT_DIR.resolve(stem + ".md");
+		Path target = outputDir.resolve(stem + ".md");
 		int suffix = 2;
 		while (Files.exists(target)) {
-			target = OUTPUT_DIR.resolve(stem + "_" + suffix + ".md");
+			target = outputDir.resolve(stem + "_" + suffix + ".md");
 			suffix += 1;
 		}
 		

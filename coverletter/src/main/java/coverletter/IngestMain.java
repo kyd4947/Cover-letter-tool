@@ -50,7 +50,7 @@ public class IngestMain {
 				System.err.println("적재할 파일이 없습니다.");
 				return;
 			}
-			new Ingestor().ingest(config, files);
+			new Ingestor(config.profilePath()).ingest(config, files);
 			System.out.println("Ingest 완료");
 		} catch(GeminiClient.GeminiException e) {
 			System.err.println("[호출 실패] " + e.getMessage());
