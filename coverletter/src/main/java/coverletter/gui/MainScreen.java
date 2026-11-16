@@ -23,9 +23,11 @@ public class MainScreen extends JPanel{
 	private final JTextArea log = new JTextArea();
 	private final JButton runButton = new JButton("생성 시작");
 	private final Consumer<String> status;				// 하단 상태바 콜백
+	private final Consumer<Main.GenerationResult> done;		// 생성 완료 통보 (결과 화면 전환)
 	
-	public MainScreen(Consumer<String> status) {
+	public MainScreen(Consumer<String> status, Consumer<Main.GenerationResult> done) {
 		this.status = status;
+		this.done = done;
 		setLayout(new BorderLayout(8, 8));
 		
 		JPanel input = new JPanel(new GridLayout(2, 2, 8, 8));
@@ -73,6 +75,7 @@ public class MainScreen extends JPanel{
 						status.accept("생성 중단 - 로그 확인");
 					} else {
 						status.accept("완료 - " + r.saved().toAbsolutePath());
+						done.accept(r);
 					}
 				} catch(Exception e) {
 					Throwable c = e.getCause() != null ? e.getCause() : e;

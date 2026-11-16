@@ -9,6 +9,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import coverletter.Main;
+
 // GUI 골격 - 창 1개 + 카드 전환 + 상태바
 public class GuiMain {
 
@@ -18,6 +20,7 @@ public class GuiMain {
 	private final CardLayout cards = new CardLayout();
 	private final JPanel deck = new JPanel(cards);
 	private final JLabel status = new JLabel("준비");
+	private final ResultScreen resultScreen = new ResultScreen();
 	
 	public static void main(String[] args) {
 		SwingUtilities.invokeLater(() -> new GuiMain().start());
@@ -37,7 +40,14 @@ public class GuiMain {
 		
 		// 화면 뼈대
 		for(String name : SCREENS) {
-			JPanel p = name.equals("메인") ? new MainScreen(status::setText) : placeholder(name);
+			JPanel p;
+			if(name.equals("메인")) {
+				p = new MainScreen(status::setText, this::showResult);
+			} else if(name.equals("결과")) {
+				p = resultScreen;
+			} else {
+				p = placeholder(name);
+			}
 			deck.add(p, name);
 		}
 		
@@ -54,6 +64,12 @@ public class GuiMain {
 	private void show(String name) {
 		cards.show(deck, name);
 		status.setText("화면 : " + name);
+	}
+	
+	// 생성 완료 -> 결과 화면 채움 + 전환
+	private void showResult(Main.GenerationResult r) {
+		resultScreen.showResult(r);
+		show("결과");
 	}
 	
 	private JPanel placeholder(String name) {
