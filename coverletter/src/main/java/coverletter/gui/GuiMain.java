@@ -37,8 +37,7 @@ public class GuiMain {
 		
 		// 화면 뼈대
 		for(String name : SCREENS) {
-			JPanel p = new JPanel();
-			p.add(new JLabel(name + " 화면"));
+			JPanel p = name.equals("메인") ? new MainScreen(status::setText) : placeholder(name);
 			deck.add(p, name);
 		}
 		
@@ -55,5 +54,11 @@ public class GuiMain {
 	private void show(String name) {
 		cards.show(deck, name);
 		status.setText("화면 : " + name);
+	}
+	
+	private JPanel placeholder(String name) {
+		JPanel p = new JPanel();
+		p.add(new JLabel(name + " 화면"));
+		return p;
 	}
 }
