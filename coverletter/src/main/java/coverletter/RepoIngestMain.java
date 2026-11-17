@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -22,6 +23,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import coverletter.config.AppConfig;
+import coverletter.ingest.Approver;
 import coverletter.ingest.Ingestor;
 
 // 레포 적재 1 단계 - 레포 URL -> zip 다운 -> cache / 풀기 -> 텍스트 선별 통계
@@ -112,7 +114,8 @@ public class RepoIngestMain {
 		}
 		AppConfig config = AppConfig.load();
 		System.out.println("키 로딩 OK - 모델 : " + config.models().get(0));
-		new Ingestor(config.profilePath()).ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc);
+		new Ingestor(config.profilePath()).ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc,
+				Approver.console(new Scanner(System.in)), System.out::println);
 	}
 	
 	// 기본 브랜치 조회 - GitHub API를 딱 1회 (비로그인 rate 60/h, 무해)

@@ -7,6 +7,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.function.Consumer;
 
 import coverletter.Prompt;
 import coverletter.config.AppConfig;
@@ -47,8 +48,7 @@ public class Ingestor {
 			문서 순서대로 평문으로 출력한다. 요약·해설·추가 문장 없이 원문 그대로만.
 			""";
 	
-	public void ingest(AppConfig config, List<Path> files) throws IOException{
-		Scanner input = new Scanner(System.in);
+	public void ingest(AppConfig config, List<Path> files, Approver approver, Consumer<String> log) throws IOException{
 		for(Path file : files) {
 			try {
 				String text = Extractors.of(file).extract(file);
@@ -65,7 +65,7 @@ public class Ingestor {
 				String fileName = file.getFileName().toString();
 				int dot = fileName.lastIndexOf('.');
 				String fallback = dot > 0 ? fileName.substring(0, dot) : fileName;
-				runCards(config, fileName, fallback, text, input);
+				runCards(config, fileName, fallback, text, approver, log);
 				
 			} catch (Extractor.ExtractException e) {
 				System.out.println("[스킵] " + file.getFileName() + " - " + e.getMessage());
@@ -90,10 +90,6 @@ public class Ingestor {
 			parts.add(current.toString().strip());
 		}
 		return parts;
-	}
-	// 키보드 타이핑 : y 이면 승인. 그 외 전부 보류
-	private static boolean isYes(String typed) {
-		return typed != null && typed.strip().equalsIgnoreCase("y");
 	}
 	
 	// 카드의 "제목:...." 줄에서 제목을 뽑음. 없으면 fallback (확장자 제거한 파일명 / 레포명)
@@ -192,7 +188,7 @@ public class Ingestor {
 	}
 	
 	// 카드 생성 -> 다중 분할 -> 카드별 승인 (파일·레포·직접 텍스트 공유 관문)
-	void runCards(AppConfig config, String display, String fallback, String text, Scanner input) throws IOException {
+	void runCards(AppConfig config, String display, String fallback, String text, Approver approver, Consumer<String> log) throws IOException {
 		System.out.println("적재 중 : " + display + "...");
 		String user = "자료 원문:\n" + text.strip();
 		String card = gemini.generate(config, new Prompt(CARD_SYSTEM, user)).strip();
@@ -203,35 +199,31 @@ public class Ingestor {
 			return;
 		}
 		for (String one : cards) {
-			System.out.println();
-			System.out.println("### " + display + " 요약 카드 ###");
-			System.out.println(one);
 			// 제목을 승인 전에 뽑아 근사 중복 의심 표시 -> 사람이 제목 보고 판단
 			String title = cutTitle(one, fallback);
-			String similar = similarTitle(title);
-			if(similar != null) {
-				System.out.println("[중복 의심] '" + title + "' 는 기존 '" + similar + "' 와 제목이 유사 - 중복 아니면 y, 같은 항목이면 n");
-			}
 			if(profileHas(title)) {
 				System.out.println("[스킵] '" + title + "' 섹션이 profile.md에 이미 있음");
 				continue;
 			}
-			System.out.print("\n profile.md에 반영할까요? (y/n) : ");
-			if (!isYes(input.nextLine())) {
-				System.out.println("[유지] 반영하지 않음 - 다음 파일로");
+			String similar = similarTitle(title);
+			String question = "### " + display + " 요약 카드 ###\n" + one
+					+ (similar != null ? "\n\n[중복 의심] '" + title + "' 는 기존 '" + similar + "' 와 제목이 유사 - 중복 아니면 y, 같은 항목이면 n" : "")
+					+ "\n\n profile.md에 반영할까요?";
+			if (!approver.ask(question)) {
+				log.accept("[유지] 반영하지 않음 - 다음 파일로");
 				continue;
 			}
 			appendSection(title, one);
-			System.out.println("반영 완료 - profile.md에 '" + title + "' 섹션 추가");
+			log.accept("반영 완료 - profile.md에 '" + title + "' 섹션 추가");
 		}
 	}
 
 	// 외부 조립 텍스트를 카드 관문으로 - 레포 적재 2단계 입구
-	public void ingestText(AppConfig config, String display, String fallback, String text) throws IOException {
+	public void ingestText(AppConfig config, String display, String fallback, String text, Approver approver, Consumer<String> log) throws IOException {
 		if(text == null || text.isBlank()) {
 			System.out.println("[스킵] " + display + " - 조립한 텍스트가 비어 있음");
 			return;
 		}
-		runCards(config, display, fallback, text, new Scanner(System.in));
+		runCards(config, display, fallback, text, approver, log);
 	}
 }

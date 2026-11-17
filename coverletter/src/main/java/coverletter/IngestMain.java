@@ -4,8 +4,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import coverletter.config.AppConfig;
+import coverletter.ingest.Approver;
 import coverletter.ingest.Extractors;
 import coverletter.ingest.Ingestor;
 import coverletter.llm.GeminiClient;
@@ -50,7 +52,7 @@ public class IngestMain {
 				System.err.println("적재할 파일이 없습니다.");
 				return;
 			}
-			new Ingestor(config.profilePath()).ingest(config, files);
+			new Ingestor(config.profilePath()).ingest(config, files, Approver.console(new Scanner(System.in)), System.out::println);
 			System.out.println("Ingest 완료");
 		} catch(GeminiClient.GeminiException e) {
 			System.err.println("[호출 실패] " + e.getMessage());
