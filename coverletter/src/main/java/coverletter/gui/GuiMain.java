@@ -21,6 +21,7 @@ public class GuiMain {
 	private final JPanel deck = new JPanel(cards);
 	private final JLabel status = new JLabel("준비");
 	private final ResultScreen resultScreen = new ResultScreen();
+	private final IngestScreen ingestScreen = new IngestScreen(status::setText);
 	
 	public static void main(String[] args) {
 		SwingUtilities.invokeLater(() -> new GuiMain().start());
@@ -45,6 +46,8 @@ public class GuiMain {
 				p = new MainScreen(status::setText, this::showResult);
 			} else if(name.equals("결과")) {
 				p = resultScreen;
+			} else if(name.equals("적재")) {
+				p = ingestScreen;
 			} else {
 				p = placeholder(name);
 			}

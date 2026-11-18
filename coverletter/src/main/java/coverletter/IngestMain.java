@@ -1,10 +1,12 @@
 package coverletter;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.util.function.Consumer;
 
 import coverletter.config.AppConfig;
 import coverletter.ingest.Approver;
@@ -26,27 +28,7 @@ public class IngestMain {
 			
 			List<Path> files = new ArrayList<>();
 			for(String arg : args) {
-				if(arg.startsWith("http")) {
-					System.err.println("[안내] '" + arg + "' 는 URL - 적재는 문서 파일 경로만");
-					continue;
-				}
-				Path path = Path.of(arg);
-				if(Files.isDirectory(path)) {
-					try(var entries = Files.list(path)){
-						// 지원 확장자만, 바로 아래 1층만 (재귀 X), STORE 자기 자신 제외
-						List<Path> found = entries.filter(Extractors::supported)
-								.filter(f -> !f.getFileName().toString().equalsIgnoreCase("profile.md"))
-								.toList();
-						System.out.println("[폴더] " + path.getFileName() + "- 지원 파일 " + found.size() + "개");
-						files.addAll(found);
-					}
-					continue;
-				}
-				if (!Files.exists(path)) {
-					System.err.println("[스킵] 존재하지 않는 경로 : " + arg);
-					continue;
-				}
-				files.add(path);
+				collectFiles(arg, files, System.out::println);
 			}
 			if (files.isEmpty()) {
 				System.err.println("적재할 파일이 없습니다.");
@@ -61,5 +43,32 @@ public class IngestMain {
 		} catch(Exception e) {
 			System.err.println("[오류] " + e.getMessage());
 		}
+	}
+	
+	// 입력 1개를 적재 파일 목록으로 - CLI 인수 처리와 GUI 공용 (G-4b)
+	public static void collectFiles(String arg, List<Path> files, Consumer<String> log) {
+		if(arg.startsWith("http")) {
+			log.accept("[안내] '" + arg + "' 는 URL - 적재는 문서 파일 경로만");
+			return;
+		}
+		Path path = Path.of(arg);
+		if(Files.isDirectory(path)) {
+			try(var entries = Files.list(path)){
+				// 지원 확장자만, 바로 아래 1층만 (재귀 X), STORE 자기 자신 제외
+				List<Path> found = entries.filter(Extractors::supported)
+						.filter(f -> !f.getFileName().toString().equalsIgnoreCase("profile.md"))
+						.toList();
+				log.accept("[폴더] " + path.getFileName() + "- 지원 파일 " + found.size() + "개");
+				files.addAll(found);
+			} catch (IOException e) {
+				log.accept("[스킵] 폴더 읽기 실패 : " + arg);
+			}
+			return;
+		}
+		if (!Files.exists(path)) {
+			log.accept("[스킵] 존재하지 않는 경로 : " + arg);
+			return;
+		}
+		files.add(path);
 	}
 }
