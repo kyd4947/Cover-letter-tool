@@ -16,6 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -27,7 +28,7 @@ import coverletter.ingest.Approver;
 import coverletter.ingest.Ingestor;
 
 // 레포 적재 1 단계 - 레포 URL -> zip 다운 -> cache / 풀기 -> 텍스트 선별 통계
-// LLM 미사용 - 요약 카드 / 승인 반영은 2 단계 곡에서 연결
+// 2 단계 - 선별 문서 -> LLM 요약 카드 -> 승인 관문 (Ingestor 공유)
 public class RepoIngestMain {
 
 	private static final HttpClient HTTP = HttpClient.newBuilder()
@@ -50,18 +51,18 @@ public class RepoIngestMain {
 			"dist", "__pycache__", "venv", ".idea");
 	
 	// 레포 스냅샷 전용 - 코드·문서의 실제 흔적만 근거로
-		private static final String REPO_SYSTEM = """
-				너는 GitHub 레포 스냅샷 분석기다. README·소스·노트북에서 자기소개서 재료로 쓸 사실만 정리한다.
-				코드에 실제 흔적이 없는 것을 만들어내지 않는다. 근거 없는 칭찬 표현 금지.
-				목적은 README·문서·주석에서, 과제와 결과는 코드에 실제 남은 흔적에서 찾는다.
-				프로젝트가 여럿 보이면 각각 카드를 출력하고 카드 사이는 구분줄 === 로 나눈다.
-				출력은 아래 양식만, 각 항목은 한 줄:
-				제목: (프로젝트명, 20자 이내)
-				목적: (만들거나 한 이유)
-				기술: (실제 사용한 것)
-				과제: (직면한 문제 - 자료에 실제 흔적이 있는 것)
-				결과: (자료에 실제 근거가 있는 것만)
-				""";
+	private static final String REPO_SYSTEM = """
+			너는 GitHub 레포 스냅샷 분석기다. README·소스·노트북에서 자기소개서 재료로 쓸 사실만 정리한다.
+			코드에 실제 흔적이 없는 것을 만들어내지 않는다. 근거 없는 칭찬 표현 금지.
+			목적은 README·문서·주석에서, 과제와 결과는 코드에 실제 남은 흔적에서 찾는다.
+			프로젝트가 여럿 보이면 각각 카드를 출력하고 카드 사이는 구분줄 === 로 나눈다.
+			출력은 아래 양식만, 각 항목은 한 줄:
+			제목: (프로젝트명, 20자 이내)
+			목적: (만들거나 한 이유)
+			기술: (실제 사용한 것)
+			과제: (직면한 문제 - 자료에 실제 흔적이 있는 것)
+			결과: (자료에 실제 근거가 있는 것만)
+			""";
 	
 	public static void main(String[] args) {
 		if(args.length < 1) {
@@ -69,13 +70,14 @@ public class RepoIngestMain {
 			return;
 		}
 		try {
-			run(args[0], args.length > 1 ? args[1] : null);
+			run(args[0], args.length > 1 ? args[1] : null, Approver.console(new Scanner(System.in)), System.out::println);
 		} catch (Exception e) {
 			System.out.println("[오류] " + e.getMessage());
 		}
 	}
 	
-	private static void run(String url, String branchArg) throws Exception{
+	// 레포 적재 2단계 관문까지 한 번에 - CLI와 GUI 공용 입구 (G-4c)
+	public static void run(String url, String branchArg, Approver approver, Consumer<String> log) throws Exception{
 		String[] ownerRepo = parseOwnerRepo(url);
 		if(ownerRepo == null) {
 			throw new IOException("레포 URL 파싱 실패 : " + url);
@@ -86,11 +88,11 @@ public class RepoIngestMain {
 		if(target == null) {
 			target = defaultBranch(owner, repo);
 		}
-		System.out.println("레포 : " + owner + "/" + repo + " (branch " + target + ")");
+		log.accept("레포 : " + owner + "/" + repo + " (branch " + target + ")");
 		
 		Path dir = CACHE.resolve(owner + "-" + repo);
 		if(Files.exists(dir)) {
-			System.out.println("cache/ 스냅샷 이미 존재 - 재사용 (새로 받으려면 cache 폴더 삭제 후 재Run)");
+			log.accept("cache/ 스냅샷 이미 존재 - 재사용 (새로 받으려면 cache 폴더 삭제 후 재Run)");
 		} else {
 			// codeload 직결 - api.github.com rate (비로그인 60/h)를 소모하지 않음
 			URI zipUri = URI.create("https://codeload.github.com/" + owner + "/" + repo + "/zip/refs/heads/" + target);
@@ -99,23 +101,23 @@ public class RepoIngestMain {
 			if(res.statusCode() != 200) {
 				throw new IOException("스냅샷 다운로드 실패 : HTTP " + res.statusCode() + " - URL, 브랜치, 공개 여부 확인");
 			}
-			System.out.println("zip 내려 받는 중 ....");
+			log.accept("zip 내려 받는 중 ....");
 			try (InputStream in = res.body()){
 				unzip(in, dir);
 			}
 		}
-		finish(dir);
+		finish(dir, log);
 		
 		// 2 단계 - 선별 문서를 LLM 요약 카드로 (Ingestor 공유 승인 관문)
 		String doc = assembleDoc(dir);
 		if(doc.isBlank()) {
-			System.out.println("[스킵] " + repo + " - 텍스트 재료 없음");
+			log.accept("[스킵] " + repo + " - 텍스트 재료 없음");
 			return;
 		}
 		AppConfig config = AppConfig.load();
-		System.out.println("키 로딩 OK - 모델 : " + config.models().get(0));
+		log.accept("키 로딩 OK - 모델 : " + config.models().get(0));
 		new Ingestor(config.profilePath()).ingestText(config, owner + "/" + repo + " (레포 스냅샷)", repo, doc,
-				Approver.console(new Scanner(System.in)), System.out::println);
+				approver, log);
 	}
 	
 	// 기본 브랜치 조회 - GitHub API를 딱 1회 (비로그인 rate 60/h, 무해)
@@ -204,7 +206,7 @@ public class RepoIngestMain {
 	}
 	
 	// 선별 통계 스탬프 - 파일 수, 총량, 확장자 분포 상위
-	private static void finish(Path dir) throws IOException{
+	private static void finish(Path dir, Consumer<String> log) throws IOException{
 		int kept = 0, skipped = 0;
 		long total = 0;
 		Map<String, Integer> dist = new HashMap<>();
@@ -220,13 +222,13 @@ public class RepoIngestMain {
 			total += Files.size(file);
 			dist.merge(extOf(file), 1, Integer::sum);
 		}
-		System.out.println("텍스트 대상 " + kept + "개 · " + (total / 1024) + " KB · 제외 " + skipped + "개 (무시 폴더 · 1MB 초과)");
+		log.accept("텍스트 대상 " + kept + "개 · " + (total / 1024) + " KB · 제외 " + skipped + "개 (무시 폴더 · 1MB 초과)");
 		List<Map.Entry<String, Integer>> top = new ArrayList<>(dist.entrySet());
 		top.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
 		for(Map.Entry<String, Integer> e : top.subList(0, Math.min(6, top.size()))) {
-			System.out.println(" 확장자 " + e.getKey() + " : " + e.getValue() + "개");
+			log.accept(" 확장자 " + e.getKey() + " : " + e.getValue() + "개");
 		}
-		System.out.println("스냅샷 위치 : " + dir.toAbsolutePath());
+		log.accept("스냅샷 위치 : " + dir.toAbsolutePath());
 	}
 	
 	// 경로 중간 어디라도 SKIP_DIRS 면 제외

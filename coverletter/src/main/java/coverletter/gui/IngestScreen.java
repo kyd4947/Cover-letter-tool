@@ -17,6 +17,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.SwingWorker;
 
 import coverletter.IngestMain;
+import coverletter.RepoIngestMain;
 import coverletter.config.AppConfig;
 import coverletter.ingest.Ingestor;
 
@@ -34,7 +35,7 @@ public class IngestScreen extends JPanel {
 		
 		JPanel input = new JPanel(new BorderLayout(8, 8));
 		JPanel row = new JPanel(new BorderLayout(8, 8));
-		row.add(new JLabel("자료 (파일 또는 폴더 경로)"), BorderLayout.NORTH);
+		row.add(new JLabel("자료 (파일/폴더 경로 또는 GitHub 레포 URL)"), BorderLayout.NORTH);
 		row.add(pathField, BorderLayout.CENTER);
 		JButton browse = new JButton("찾아보기...");
 		browse.addActionListener(e -> browse());
@@ -74,6 +75,10 @@ public class IngestScreen extends JPanel {
 		new SwingWorker<Void, Void>() {
 			@Override
 			protected Void doInBackground() throws Exception {
+				if(arg.startsWith("http")) {
+					RepoIngestMain.run(arg, null, new DialogApprover(IngestScreen.this), logOut);
+					return null;
+				}
 				AppConfig config = AppConfig.load();
 				List<Path> files = new ArrayList<>();
 				IngestMain.collectFiles(arg, files, logOut);
