@@ -18,7 +18,7 @@ public record AppConfig(String geminiApiKey, List<String> models, double tempera
 		return models.get(0);
 	}
 	
-	private static final Path CONFIG_FILE = Path.of("config.json");			// 프로젝트 루트 (사용자 데이터 dir)
+	public static final Path CONFIG_FILE = Path.of("config.json");			// 프로젝트 루트 (사용자 데이터 dir)
 	private static final Gson GSON = new Gson();
 	private static final List<String> DEFAULT_MODELS = List.of("gemini-2.5-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite");
 	

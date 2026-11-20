@@ -22,6 +22,7 @@ public class GuiMain {
 	private final JLabel status = new JLabel("준비");
 	private final ResultScreen resultScreen = new ResultScreen();
 	private final IngestScreen ingestScreen = new IngestScreen(status::setText);
+	private final SettingsScreen settingsScreen = new SettingsScreen(status::setText);
 	
 	public static void main(String[] args) {
 		SwingUtilities.invokeLater(() -> new GuiMain().start());
@@ -48,6 +49,8 @@ public class GuiMain {
 				p = resultScreen;
 			} else if(name.equals("적재")) {
 				p = ingestScreen;
+			} else if(name.equals("설정")) {
+				p = settingsScreen;
 			} else {
 				p = placeholder(name);
 			}
