@@ -6,7 +6,9 @@ build
 
 config.json
 profile.md
+posting.txt
 cache/
 output/
+dist/
 bin/
 .idea/
