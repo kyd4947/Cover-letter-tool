@@ -19,5 +19,5 @@ java {
 }
 
 application {
-    mainClass.set("coverletter.Main")
+    mainClass.set("coverletter.gui.GuiMain")
 }
