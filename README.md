@@ -8,6 +8,17 @@
 - 자료 적재: 파일/폴더 + GitHub 공개 레포 → LLM 카드 → **사람 승인 y/n**
 - CLI 3종 + Swing GUI (외부 GUI 의존 없음)
 
+## 다운로드 & 실행 (일반 사용자)
+
+1. [Releases](https://github.com/kyd4947/Cover-letter-tool/releases)에서 `CoverLetterTool-portable.zip` 다운로드
+2. 원하는 폴더에 압축 해제 — **Java 설치 불필요** (JDK 런타임 내장)
+3. `CoverLetterTool.exe` 실행
+4. Windows SmartScreen 경고 시 **추가 정보 → 실행** (서명되지 않은 exe)
+5. 첫 실행 온보딩에서 Gemini API 키 입력 → 저장하면 메인 화면
+
+- 압축을 푼 폴더가 데이터 위치 — `config.json`·`profile.md`·`guides/`·`output/`이 그 폴더에 생성
+- 폴더째 옮기면 데이터도 함께 이동 (portable)
+
 ## 요구사항
 
 - Java 21, Gradle (wrapper 포함)
@@ -29,6 +40,7 @@
 }
 ```
 
+- 키 발급: <https://aistudio.google.com/apikey> (Google AI Studio — 무료 티어)
 - 키는 환경변수로 대체 가능 (환경변수가 있으면 config.json 값보다 우선)
 - `config.json`은 **gitignored** — 개인 키를 커밋하지 말 것
 - `models` 첫 번째가 기본 모델, JSON이 깨져도 기본값으로 통과 (fail-open)
@@ -116,30 +128,38 @@ RepoIngestMain https://github.com/owner/repo/tree/브랜치
 - **근사 중복**은 `[중복 의심]` 경고 후 사람이 판단
   (정규화 후 최장 공통 ≥ 짧은 쪽의 0.6, 5자 미만 미발동)
 
-## 프로젝트 구조
+## 저장소 구조
 
 ```
-coverletter/
-├─ src/main/java/coverletter/
-│  ├─ Main.java              생성 흐름 (CLI·GUI 공용)
-│  ├─ IngestMain.java        파일/폴더 적재
-│  ├─ RepoIngestMain.java    레포 적재
-│  ├─ PromptBuilder.java     프롬프트 + 응답 파싱
-│  ├─ config/AppConfig.java  설정 로딩
-│  ├─ crawl/PostingScraper   공고 크롤링
-│  ├─ ingest/                추출기·카드·승인 관문
-│  ├─ llm/GeminiClient       Gemini 호출 (모델 후보 폴백)
-│  ├─ output/                저장·회사 정보
-│  ├─ profile/ProfileStore   profile.md 파싱
-│  └─ gui/                   Swing GUI (5화면 + 상태바)
-├─ config.json               (gitignored)
-├─ profile.md                (gitignored)
-├─ posting.txt               (gitignored) 공고 본문 백업용
-├─ cache/                    (gitignored) 레포 스냅샷
-└─ output/                   (gitignored) 생성 결과
+Cover-letter-tool/
+├─ LICENSE                    MIT
+├─ README.md
+└─ coverletter/
+   ├─ build.bat               Windows portable 빌드 (jpackage)
+   ├─ src/main/java/coverletter/
+   │  ├─ Main.java            생성 흐름 (CLI·GUI 공용)
+   │  ├─ IngestMain.java      파일/폴더 적재
+   │  ├─ RepoIngestMain.java  레포 적재
+   │  ├─ PromptBuilder.java   프롬프트 + 응답 파싱
+   │  ├─ SectionGuideStore.java  항목별 가이드 로더
+   │  ├─ config/AppConfig.java   설정 로딩
+   │  ├─ crawl/PostingScraper    공고 크롤링
+   │  ├─ ingest/              추출기·카드·승인 관문
+   │  ├─ llm/GeminiClient     Gemini 호출 (모델 후보 폴백)
+   │  ├─ output/              저장·회사 정보
+   │  ├─ profile/ProfileStore profile.md 파싱
+   │  └─ gui/                 Swing GUI (5화면 + 상태바)
+   ├─ src/main/resources/guides/  기본 가이드 번들
+   ├─ config.json             (gitignored)
+   ├─ profile.md              (gitignored)
+   ├─ posting.txt             (gitignored) 공고 본문 백업용
+   ├─ guides/                 (gitignored) 사용자 가이드 — 첫 실행 시 번들 복사
+   ├─ cache/                  (gitignored) 레포 스냅샷
+   └─ output/                 (gitignored) 생성 결과
 ```
 
-## Windows 빌드 (M4)
+
+## Windows 빌드 (개발자)
 
 ```bat
 build.bat
@@ -149,8 +169,33 @@ build.bat
 - 압축을 푼 폴더가 실행 위치 — `config.json`·`profile.md`·`output`도 그 폴더 기준으로 생성
 - 설치형 `exe`(MSI 포함)는 **WiX Toolset 3.x** 필요 — 미설치 환경에서는 app-image + zip으로 배포
 
+## 데이터 전송과 개인정보
+
+- **Gemini API로 전송되는 것**: 공고 본문, `profile.md`, 생성 중인 초안, 레포 적재 시 선별된 코드·README
+- **무료 티어 주의**: Google 무료 티어는 입력 데이터가 제품 개선(학습)에 활용될 수 있습니다. 회사 기밀·민감 정보는 넣지 마세요
+- **로컬에만 남는 것**: `config.json`(API 키), `profile.md`, `output/`, `cache/`, `guides/` — 전부 gitignored
+- 외부 전송은 **Gemini API**와 **GitHub(레포 적재 시)** 두 곳뿐 — 자체 서버·계정 없음
+- API 키는 BYOK(각자 발급) — 로그·출력에 노출되지 않음
+
+## 문제 해결
+
+| 증상 | 대응 |
+|------|------|
+| SmartScreen "Windows의 PC 보호" | 추가 정보 → 실행 / 백신 예외 등록 (unsigned exe) |
+| 키 없음 · 403 | 설정 화면에서 키 확인, 또는 `GEMINI_API_KEY` 환경변수 설정 |
+| 429 한도 초과 | 몇 분 후 재시도 또는 유료 키 |
+| 공고 본문이 비어 있음 | JS 렌더링 페이지 — 본문을 `posting.txt`에 붙여넣고 `Main posting.txt 회사명` |
+| private 레포 실패 | 공개 레포만 지원 (토큰 지원은 백로그) |
+| 글자 수 초과 경고 | 압축 재호출 1회 후 더 가까운 초안 채택 — 결과 화면에서 수동 수정 |
+| guides/ 폴더가 안 보임 | 첫 생성 또는 GUI 실행 시 생성 — 실행 위치 확인 |
+
+## 라이선스
+
+MIT — [LICENSE](LICENSE) 참고.
+
 ## 참고
 
-- `config.json` 위치는 고정 (`coverletter/config.json`) — 위치 자체는 설정 불가
+- `config.json` 위치는 **실행 위치 기준 고정** — GUI 설정에서 위치 자체는 변경 불가
 - GUI 설정 화면 저장은 폼이 아는 6키만 기록
+- `guides/`의 md를 직접 수정하면 다음 생성부터 반영, 없는 항목은 `_default.md` 사용
 - 공고 본문을 `posting.txt`에 붙여넣으면 URL 크롤 실패 시에도 생성 가능

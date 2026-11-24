@@ -10,5 +10,6 @@ posting.txt
 cache/
 output/
 dist/
+guides/
 bin/
 .idea/

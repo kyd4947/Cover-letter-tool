@@ -2,6 +2,7 @@ package coverletter.gui;
 
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.io.IOException;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -10,6 +11,7 @@ import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
 import coverletter.Main;
+import coverletter.SectionGuideStore;
 import coverletter.config.AppConfig;
 
 // GUI 골격 - 창 1개 + 카드 전환 + 상태바
@@ -31,6 +33,13 @@ public class GuiMain {
 	}
 	
 	private void start() {
+		// 가이드 사용자 폴더 - 첫 실행 시 번들 복사
+		try {
+			SectionGuideStore.ensureUserGuides();
+		} catch (IOException e) {
+			status.setText("guides 준비 실패 - 번들 가이드 사용");
+		}
+		
 		JFrame frame = new JFrame("자기소개서 생성기");
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		

@@ -1,5 +1,6 @@
 package coverletter;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
@@ -49,6 +50,14 @@ public class Main {
 		// 0) 설정 + 키
 		AppConfig config = AppConfig.load();
 		log.accept("키 로딩 OK - 모델 : " + config.model());
+		
+		// 가이드 사용자 폴더 - 첫 실행 시 번들 복사 (실패해도 번들 가이드로 계속)
+		try {
+			SectionGuideStore.ensureUserGuides();
+		} catch (IOException e) {
+			log.accept("[경고] guides 사용자 폴더 준비 실패 - 번들 가이드 사용 (" + e.getMessage() + ")");
+		}
+		
 		GeminiClient gemini = new GeminiClient();
 		
 		// 1) 공고 확보 - http로 시작하면 크롤, 아니면 텍스트 파일 경로 (백업 모드)
