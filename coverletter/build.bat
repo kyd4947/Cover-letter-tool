@@ -4,11 +4,11 @@ cd /d "%~dp0"
 
 rem M4 - Windows portable build (app-image + zip). Installer exe needs WiX Toolset 3.x.
 
-echo [1/3] gradle clean installDist ...
+echo [1/4] gradle clean installDist ...
 call gradlew.bat clean installDist --console=plain
 if errorlevel 1 goto :fail
 
-echo [2/3] jpackage app-image ...
+echo [2/4] jpackage app-image ...
 if exist dist rmdir /s /q dist
 jpackage ^
   --type app-image ^
@@ -23,7 +23,11 @@ jpackage ^
   --java-options "-Dfile.encoding=UTF-8"
 if errorlevel 1 goto :fail
 
-echo [3/3] portable zip ...
+echo [3/4] license copy ...
+copy /y "..\LICENSE" "dist\CoverLetterTool\LICENSE.txt" >nul
+if errorlevel 1 goto :fail
+
+echo [4/4] portable zip ...
 powershell -NoProfile -Command "Compress-Archive -Path 'dist\CoverLetterTool' -DestinationPath 'dist\CoverLetterTool-portable.zip' -Force"
 if errorlevel 1 goto :fail
 
