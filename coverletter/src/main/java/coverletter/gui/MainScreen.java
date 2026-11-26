@@ -31,7 +31,7 @@ public class MainScreen extends JPanel{
 		setLayout(new BorderLayout(8, 8));
 		
 		JPanel input = new JPanel(new GridLayout(2, 2, 8, 8));
-		input.add(new JLabel("공공 (URL 또는 텍스트 파일 경로)"));
+		input.add(new JLabel("공고 (URL 또는 텍스트 파일 경로)"));
 		input.add(postingField);
 		input.add(new JLabel("회사명"));
 		input.add(companyField);
