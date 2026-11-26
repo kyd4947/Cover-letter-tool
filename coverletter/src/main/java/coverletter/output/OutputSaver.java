@@ -36,6 +36,16 @@ public class OutputSaver {
 			suffix += 1;
 		}
 		
+		return Files.writeString(target, toMarkdown(company, drafts));
+	}
+	
+	// 다듬기 후 같은 파일 갱신 - 접미사 없이 덮어씀
+	public Path rewrite(Path target, CompanyInfo company, List<SectionDraft> drafts) throws IOException {
+		return Files.writeString(target, toMarkdown(company, drafts));
+	}
+	
+	// 저장 본문 조립 - save / rewrite 공용
+	private static String toMarkdown(CompanyInfo company, List<SectionDraft> drafts) {
 		StringBuilder md = new StringBuilder();
 		md.append("# ").append(company.companyName())
 			.append(" 자기소개서 (").append(company.appliedDate()).append(")\n\n");
@@ -46,7 +56,7 @@ public class OutputSaver {
 				.append(draft.text())
 				.append("\n\n");
 		}
-		return Files.writeString(target, md.toString());
+		return md.toString();
 	}
 	
 	// 파일명 불가 문자 치환 (회사명에 /:*? 등이 섞여도 이상")

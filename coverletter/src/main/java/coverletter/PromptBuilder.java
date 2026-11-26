@@ -32,6 +32,12 @@ public class PromptBuilder {
 	// LLM 2차 - 단일 항목 초안. priorDraft는 다듬기 재호출 시 이전 초안, 첫 생성은 null
 	public Prompt buildSectionPrompt(Posting posting, ProfileStore.Profile profile,
 			List<String> strengths, Section section, String priorDraft) throws IOException {
+		return buildSectionPrompt(posting, profile, strengths, section, priorDraft, null);
+	}
+	
+	// 다듬기 재호출 - 이전 초안 + 수정 지시를 함께 반영
+	public Prompt buildSectionPrompt(Posting posting, ProfileStore.Profile profile,
+			List<String> strengths, Section section, String priorDraft, String instruction) throws IOException {
 		SectionGuideStore.SectionGuide guide = guides.get(section.title());
 		
 		String system = """
@@ -40,9 +46,10 @@ public class PromptBuilder {
 				본문 글자수는 공백 포함, 제한 글자수의 85% 이상 100% 이하로 맞춘다.
 				문체는 존댓말 정중형으로, 개조식(목록형)이 아니라 자연스러운 문단으로 쓴다.
 				소제목, "제 답변은" 같은 머리말과 말끝퍼즐 없이, 본문 텍스트만 출력한다.
+				이전 초안이 주어지면 그 사실관계를 유지한 채 수정 지시를 반영해 다시 쓴다.
 				""";
 		
-		// user 조립 순서 : ① 공고 ② 역량 ③ profile + 가이드 ④ 항목 지시 ⑤ 이전 초안
+		// user 조립 순서 : ① 공고 ② 역량 ③ profile + 가이드 ④ 항목 지시 ⑤ 이전 초안 ⑥ 수정 지시
 		StringBuilder user = new StringBuilder();
 		user.append("[채용공고 원문]\n").append(posting.sourceText()).append("\n\n");
 		user.append("[필요 역량 - 공고 분석 결과]\n");
@@ -61,6 +68,9 @@ public class PromptBuilder {
 			.append("자\n");
 		if (priorDraft != null && !priorDraft.isBlank()) {
 			user.append("\n[이전 초안 - 이 문단을 다듬을 것]\n").append(priorDraft).append('\n');
+		}
+		if (instruction != null && !instruction.isBlank()) {
+			user.append("\n[수정 지시 - 이전 초안에 반영]\n").append(instruction.strip()).append('\n');
 		}
 		
 		return new Prompt(system, user.toString());

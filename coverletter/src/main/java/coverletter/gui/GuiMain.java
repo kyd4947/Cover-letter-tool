@@ -23,7 +23,7 @@ public class GuiMain {
 	private final CardLayout cards = new CardLayout();
 	private final JPanel deck = new JPanel(cards);
 	private final JLabel status = new JLabel("준비");
-	private final ResultScreen resultScreen = new ResultScreen();
+	private final ResultScreen resultScreen = new ResultScreen(status::setText);
 	private final IngestScreen ingestScreen = new IngestScreen(status::setText);
 	private final SettingsScreen settingsScreen = new SettingsScreen(status::setText);
 	private final OnboardScreen onboardScreen = new OnboardScreen(status::setText, () -> show("메인"));

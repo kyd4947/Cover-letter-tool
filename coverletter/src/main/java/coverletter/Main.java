@@ -25,8 +25,11 @@ public class Main {
 			new Section("성격 장단점", 500),
 			new Section("입사 후 포부", 400));
 	
-	// 생성 완료 결과 - 저장 위치 + 초안 목록
-	public record GenerationResult(Path saved, List<SectionDraft> drafts) {}
+	// 다듬기 재호출용 컨텍스트 - 재크롤/재분석 없이 이전 결과를 이어 쓴다
+	public record GenerationContext(PromptBuilder.Posting posting, ProfileStore.Profile profile, List<String> strengths) {}
+	
+	// 생성 완료 결과 - 저장 위치 + 초안 + 회사 정보 + 다듬기 컨텍스트
+	public record GenerationResult(Path saved, List<SectionDraft> drafts, CompanyInfo company, GenerationContext context) {}
 	
 	public static void main(String[] args) {
 		try {
@@ -89,6 +92,7 @@ public class Main {
 			return null;
 		}
 		log.accept("요구역량 " + strengths.size() + "개 -> " + strengths);
+		GenerationContext context = new GenerationContext(posting, profile, strengths);
 		
 		// 4) LLM 양식 감지 - 항목 + 글자 수 유추, 실패 시 기본 양식 (fail - closed)
 		List<Section> form;
@@ -134,8 +138,48 @@ public class Main {
 		}
 		
 		// 6) 저장
-		Path saved = new OutputSaver(config.outputDir()).save(new CompanyInfo(company, LocalDate.now()), drafts);
+		CompanyInfo info = new CompanyInfo(company, LocalDate.now());
+		Path saved = new OutputSaver(config.outputDir()).save(info, drafts);
 		log.accept("저장 성공 : " + saved.toAbsolutePath());
-		return new GenerationResult(saved, drafts);
+		return new GenerationResult(saved, List.copyOf(drafts), info, context);
+	}
+	
+	// 다듬기 - 이전 초안 + 수정 지시로 해당 항목만 재호출, 저장 파일도 같은 경로에 갱신
+	public static GenerationResult refine(GenerationResult result, int index, String instruction, Consumer<String> log) throws Exception {
+		if(index < 0 || index >= result.drafts().size()) {
+			throw new IllegalArgumentException("항목 번호 범위 밖 : " + index);
+		}
+		AppConfig config = AppConfig.load();
+		GeminiClient gemini = new GeminiClient();
+		PromptBuilder builder = new PromptBuilder();
+		SectionDraft old = result.drafts().get(index);
+		Section section = old.section();
+		
+		log.accept("다듬기 : " + section.title() + " .... ");
+		String text = gemini.generate(config, builder.buildSectionPrompt(
+				result.context().posting(), result.context().profile(), result.context().strengths(),
+				section, old.text(), instruction)).strip();
+		if(text.isEmpty()) {
+			throw new IllegalStateException("다듬기 응답이 비어 있음");
+		}
+		int count = (int) text.codePoints().count();
+		
+		// 글자 수 clamp - 생성과 같은 규칙 (초과 시 압축 1회, 더 가까운 것 채택)
+		if(count > section.charLimit()) {
+			log.accept("                " + count + "자 초과 - 압축 재호출 .... ");
+			String trimmed = gemini.generate(config, builder.buildTrimPrompt(section, text)).strip();
+			int trimmedCount = (int) trimmed.codePoints().count();
+			if(trimmedCount <= section.charLimit() || trimmedCount < count) {
+				text = trimmed;
+				count = trimmedCount;
+			}
+			log.accept("          압축 후 " + count + "자 (제한 " + section.charLimit() + "자)");
+		}
+		
+		List<SectionDraft> drafts = new ArrayList<>(result.drafts());
+		drafts.set(index, new SectionDraft(section, text, count));
+		new OutputSaver(config.outputDir()).rewrite(result.saved(), result.company(), drafts);
+		log.accept("다듬기 완료 - " + count + "자 / 파일 갱신 : " + result.saved().getFileName());
+		return new GenerationResult(result.saved(), List.copyOf(drafts), result.company(), result.context());
 	}
 }
