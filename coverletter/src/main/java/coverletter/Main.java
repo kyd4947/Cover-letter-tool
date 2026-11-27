@@ -18,8 +18,8 @@ import coverletter.profile.ProfileStore;
 
 public class Main {
 	
-	// 기본 양식 - 항목 감지/수동 입력으로 확장
-	private static final List<Section> DEFAULT_FORM = List.of(
+	// 기본 양식 - 수동 선택 · 감지 실패 시 폴백
+	public static final List<Section> DEFAULT_FORM = List.of(
 			new Section("성장과정", 500),
 			new Section("지원동기", 500),
 			new Section("성격 장단점", 500),
@@ -47,9 +47,14 @@ public class Main {
 		}
 	}
 	
-	// GUI · CLI 공용 생성 흐름 - 로그는 log 콜백으로 출력
+	// GUI · CLI 공용 생성 흐름 - 양식 자동 감지 (기존 호출측 무손상)
+	public static GenerationResult generate(String arg0, String company, Consumer<String> log) throws Exception {
+		return generate(arg0, company, null, log);
+	}
+
+	// GUI · CLI 공용 생성 흐름 - manualForm 이 있으면 LLM 감지 생략
 	// 중단 케이스 (빈 본문 · 역량 실패)는 null 반환
-	public static GenerationResult generate(String arg0, String company, Consumer<String> log) throws Exception{
+	public static GenerationResult generate(String arg0, String company, List<Section> manualForm, Consumer<String> log) throws Exception {
 		// 0) 설정 + 키
 		AppConfig config = AppConfig.load();
 		log.accept("키 로딩 OK - 모델 : " + config.model());
@@ -94,19 +99,24 @@ public class Main {
 		log.accept("요구역량 " + strengths.size() + "개 -> " + strengths);
 		GenerationContext context = new GenerationContext(posting, profile, strengths);
 		
-		// 4) LLM 양식 감지 - 항목 + 글자 수 유추, 실패 시 기본 양식 (fail - closed)
+		// 4) 양식 - 수동 지정이 있으면 그대로, 없으면 LLM 감지 (실패 시 기본 양식)
 		List<Section> form;
-		try {
-			form = PromptBuilder.parseForm(gemini.generate(config, builder.buildFormPrompt(posting)));
-		} catch (GeminiClient.GeminiException e) {
-			log.accept("양식 감지 호출 실패 - 기본 양식 사용 (" + e.getMessage() + ")");
-			form = List.of();
-		}
-		if (form.isEmpty()) {
-			log.accept("양식 감지 실패 - 기본 양식 사용 (성장 과정 / 지원 동기 / 성격 장단점 / 입사 후 포부)");
-			form = DEFAULT_FORM;
+		if(manualForm != null && !manualForm.isEmpty()) {
+			form = manualForm;
+			log.accept("지정 양식 사용 - " + form.size() + "항목 -> " + form);
 		} else {
-			log.accept("양식 감지 OK - " + form.size() + "항목 -> " + form);
+			try {
+				form = PromptBuilder.parseForm(gemini.generate(config, builder.buildFormPrompt(posting)));
+			} catch (GeminiClient.GeminiException e) {
+				log.accept("양식 감지 호출 실패 - 기본 양식 사용 (" + e.getMessage() + ")");
+				form = List.of();
+			}
+			if (form.isEmpty()) {
+				log.accept("양식 감지 실패 - 기본 양식 사용 (성장 과정 / 지원 동기 / 성격 장단점 / 입사 후 포부)");
+				form = DEFAULT_FORM;
+			} else {
+				log.accept("양식 감지 OK - " + form.size() + "항목 -> " + form);
+			}
 		}
 		
 		// 5) LLM 2차 - 항목별 초안
